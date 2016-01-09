@@ -9,5 +9,7 @@
 * pydle (from shizmob/pydle)
 
 # Running the bot:
-    $EDITOR relay.ini
-    python3.5 relay-bot.py
+Note that --ini is an optional argument, and if given no arguments the bot reads configuration from relay.ini.
+
+    $EDITOR relay.ini 
+    python3.5 relay-bot.py (--ini /path/to/ini/file)

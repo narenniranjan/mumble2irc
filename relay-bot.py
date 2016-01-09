@@ -6,19 +6,8 @@ import ssl
 import tornado.platform.asyncio
 import bs4
 import re
-import bleach
-
-
-MUMBLE_USERNAME = 'IRC'
-MUMBLE_PASSWORD = 'pw'
-MUMBLE_HOST = 'host'
-MUMBLE_PORT = 64738
-MUMBLE_CHANNEL_ID = '0'
-
-IRC_NICKNAME = 'Mumble'
-IRC_HOST = 'host'
-IRC_PORT = 6697
-IRC_CHANNEL_NAME = '#channel'
+import configparser
+import argparse
 
 def replace_url_to_link(value):
     # Replace url to link 
@@ -28,7 +17,6 @@ def replace_url_to_link(value):
     urls = re.compile(r"([\w\-\.]+@(\w[\w\-]+\.)+[\w\-]+)", re.MULTILINE|re.UNICODE)
     value = urls.sub(r'<a href="mailto:\1">\1</a>', value)
     return value
-
 
 def extract_text_from_html(html):
     return bs4.BeautifulSoup(html).text
@@ -90,6 +78,38 @@ if __name__ == '__main__':
     tornado.platform.asyncio.AsyncIOMainLoop().install()
     loop = asyncio.get_event_loop()
 
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument('--ini', required=False, help='Location of configuration file.')
+    args = arg_parser.parse_args()
+
+    config = configparser.ConfigParser()
+    if args.ini:
+        config.read(args.ini)
+    else:
+        config.read('relay.ini')
+
+    MUMBLE_CHANNEL_ID = 0
+    MUMBLE_PORT = 64738
+    MUMBLE_USERNAME = config['Mumble']['nickname']
+    MUMBLE_HOST = config['Mumble']['server']
+    if 'channel_id' in config['Mumble']:
+        MUMBLE_CHANNEL_ID = int(config['Mumble']['channel_id'])
+    if 'password' in config['Mumble']:
+        MUMBLE_PASSWORD = config['Mumble']['password']
+    if 'port' in config['Mumble']:
+        MUMBLE_PORT = config['Mumble']['port']
+    if 'cert' in config['Mumble']:
+        MUMBLE_CERT_FILE = config['Mumble']['cert']
+        MUMBLE_CERT_PW = config['Mumble']['certpw']
+
+    IRC_PORT = 6667
+    IRC_NICKNAME = config['IRC']['nickname']
+    IRC_HOST = config['IRC']['server']
+    IRC_CHANNEL_NAME = config['IRC']['channel']
+    if 'port' in config['IRC']:
+        IRC_PORT = config['IRC']['port']
+
+
     irc_client = IRCClient(IRC_NICKNAME)
     mumble_client = MumbleClient()
 
@@ -99,6 +119,8 @@ if __name__ == '__main__':
     ssl_ctx = ssl.create_default_context()
     ssl_ctx.check_hostname = False
     ssl_ctx.verify_mode = ssl.CERT_NONE
+    if MUMBLE_CERT_FILE and MUMBLE_CERT_PW:
+        ssl_ctx.load_cert_chain(MUMBLE_CERT_FILE, None, MUMBLE_CERT_PW)
 
     irc_client.connect(IRC_HOST, IRC_PORT, tls=True, tls_verify=False)
     loop.run_until_complete(mumble_client.connect(MUMBLE_HOST, MUMBLE_PORT,
