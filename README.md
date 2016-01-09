@@ -9,5 +9,5 @@
 * pydle (from shizmob/pydle)
 
 # Running the bot:
-$EDITOR relay.ini
-python3.5 relay-bot.py
+    $EDITOR relay.ini
+    python3.5 relay-bot.py
