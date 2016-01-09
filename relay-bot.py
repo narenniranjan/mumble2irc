@@ -13,7 +13,7 @@ MUMBLE_USERNAME = 'IRC'
 MUMBLE_PASSWORD = 'pw'
 MUMBLE_HOST = 'host'
 MUMBLE_PORT = 64738
-MUMBLE_CHANNEL_ID = 0'
+MUMBLE_CHANNEL_ID = '0'
 
 IRC_NICKNAME = 'Mumble'
 IRC_HOST = 'host'
@@ -56,7 +56,7 @@ class MumbleClient(mumble.Client):
     def relay(self, origin, message):
         self.send_text_message(
             self.channels[MUMBLE_CHANNEL_ID],
-            str(markupsafe.Markup('<b>%s:</b> %s') % (origin, markupsafe.Markup(replace_url_to_link(markupsafe.escape(message))))))
+            "<b>{}:</b> {}".format(origin, replace_url_to_link(str(markupsafe.escape(message)))))
 
 
 class IRCClient(pydle.Client):
