@@ -46,6 +46,15 @@ class MumbleClient(mumble.Client):
             self.channels[MUMBLE_CHANNEL_ID],
             "<b>{}:</b> {}".format(origin, replace_url_to_link(str(markupsafe.escape(message)))))
 
+    def irc_action(self, origin, action):
+        self.send_text_message(
+            self.channels[MUMBLE_CHANNEL_ID],
+            "<i>{} {}</i>".format(origin, str(markupsafe.escape(action))))
+
+    def irc_topic(self, channel, message, by):
+        self.send_text_message(
+            self.channels[MUMBLE_CHANNEL_ID],
+            "<b>{}</b> <i>has changed the topic of {} to:</i> {}".format(by, channel, str(markupsafe.escape(message))))
 
 class IRCClient(pydle.Client):
     def on_connect(self):
@@ -53,6 +62,12 @@ class IRCClient(pydle.Client):
 
     def on_message(self, source, target, message):
         self.mumble_client.relay(target, message)
+
+    def on_topic_change(self, channel, message, by):
+        self.mumble_client.irc_topic(channel, message, by)
+
+    def on_ctcp_action(self, by, target, contents):
+        self.mumble_client.irc_action(by, contents)
 
     def on_join(self, channel, user):
         if user != self.nickname:
