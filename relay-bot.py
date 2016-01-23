@@ -75,6 +75,11 @@ class MumbleClient(mumble.Client):
         self.send_text_message(
             self.channels[MUMBLE_CHANNEL_ID],
             "<i>{} {}</i>".format(origin, str(markupsafe.escape(action))))
+    
+    def nick_change(self, old, new):
+        self.send_text_message(
+            self.channels[MUMBLE_CHANNEL_ID],
+            "<i><b>{}</b> is now known as <b>{}</b></i>".format(str(markupsafe.escape(old)), str(markupsafe.escape(new))))
 
     def irc_topic(self, channel, message, by):
         self.send_text_message(
@@ -95,6 +100,9 @@ class IRCClient(pydle.Client):
             pass
     def on_connect(self):
         self.join(IRC_CHANNEL_NAME)
+
+    def on_nick_change(self, old, new):
+        self.mumble_client.nick_change(old, new)
 
     def on_message(self, source, target, message):
         if message[0] == "." and source == IRC_CHANNEL_NAME:
