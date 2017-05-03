@@ -1,6 +1,6 @@
 # mumble2irc: A mumble to IRC relay bot
 
-!!!! THIS README IS CURRENTLY UNDER CONSTRUCTION !!!!
+This project has been superceded by https://github.com/narenniranjan/broadcast.
 
 # Requirements:
 

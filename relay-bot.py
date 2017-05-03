@@ -9,6 +9,7 @@ import re
 import configparser
 import argparse
 
+
 def replace_url_to_link(value):
     # Replace url to link 
     urls = re.compile(r"((https?):((//)|(\\\\))+[\w\d:#@%/;$()~_?\+-=\\\.&]*)", re.MULTILINE|re.UNICODE)
@@ -22,12 +23,31 @@ def extract_text_from_html(html):
     return bs4.BeautifulSoup(html).text
 
 class MumbleClient(mumble.Client):
+    def parse_command(self, message):
+        command = message.split(" ")[0]
+        if command == ".userlist":
+            userstring = ""
+            for i in self.irc_client.channels[IRC_CHANNEL_NAME]['users']:
+                userstring += i + ", "
+            userstring = userstring[0:-2]
+            return "<b>Users in {}:</b><br>".format(IRC_CHANNEL_NAME) + str(markupsafe.escape(userstring))
+        elif command == ".topic":
+            return "<b>Topic for {}:</b><br>".format(IRC_CHANNEL_NAME) + replace_url_to_link(str(markupsafe.escape(self.irc_client.channels[IRC_CHANNEL_NAME]['topic'])))
+        else:
+            pass
 
     def user_moved(self, user, source, dest):
         if source and source == self.me.get_channel():
             self.irc_client.userpart(user.name, self.me.get_channel().name)
         if dest and dest == self.me.get_channel():
             self.irc_client.userjoin(user.name, self.me.get_channel().name) 
+            try:
+                self.send_text_message(
+                    self.users_by_name[user.name], self.parse_command('.topic'))
+                self.send_text_message(
+                    self.users_by_name[user.name], self.parse_command('.userlist'))
+            except KeyError as err:
+                pass
 
     def connection_ready(self):
         self.join_channel(self.channels[MUMBLE_CHANNEL_ID])
@@ -39,7 +59,11 @@ class MumbleClient(mumble.Client):
         self.send_text_message(self.channels[MUMBLE_CHANNEL_ID], "<b>{}</b> has left {} ({})".format(joiner, channel, reason))
 
     def text_message_received(self, origin, target, message):
-        self.irc_client.relay(origin.name, message)
+        if message[0] == '.':
+            result_string = self.parse_command(message)
+            self.send_text_message(self.users_by_name[origin.name], result_string)
+        else:
+            self.irc_client.relay(origin.name, message)
 
     def relay(self, origin, message):
         self.send_text_message(
@@ -47,12 +71,50 @@ class MumbleClient(mumble.Client):
             "<b>{}:</b> {}".format(origin, replace_url_to_link(str(markupsafe.escape(message)))))
 
 
+    def irc_action(self, origin, action):
+        self.send_text_message(
+            self.channels[MUMBLE_CHANNEL_ID],
+            "<i>{} {}</i>".format(origin, str(markupsafe.escape(action))))
+    
+    def nick_change(self, old, new):
+        self.send_text_message(
+            self.channels[MUMBLE_CHANNEL_ID],
+            "<i><b>{}</b> is now known as <b>{}</b></i>".format(str(markupsafe.escape(old)), str(markupsafe.escape(new))))
+
+    def irc_topic(self, channel, message, by):
+        self.send_text_message(
+            self.channels[MUMBLE_CHANNEL_ID],
+            "<b>{}</b> <i>has changed the topic of {} to:</i> {}".format(by, channel, str(markupsafe.escape(message))))
+
 class IRCClient(pydle.Client):
+    def parse_command(self, message):
+        command = message.split(" ")[0]
+        if command == ".userlist":
+            userstring = ""
+            users = [self.mumble_client.users[x].name for x in self.mumble_client.users if self.mumble_client.users[x].channel_id == MUMBLE_CHANNEL_ID]
+            for i in users: 
+                userstring += i[0] + '\u00AD' + i[1:] + ", "
+            userstring = userstring[0:-2]
+            return "\x02Users in {}:\x02 ".format(self.mumble_client.channels[MUMBLE_CHANNEL_ID].name) + str(markupsafe.escape(userstring))
+        else:
+            pass
     def on_connect(self):
         self.join(IRC_CHANNEL_NAME)
 
+    def on_nick_change(self, old, new):
+        self.mumble_client.nick_change(old, new)
+
     def on_message(self, source, target, message):
-        self.mumble_client.relay(target, message)
+        if message[0] == "." and source == IRC_CHANNEL_NAME:
+            self.notice(target, self.parse_command(message))
+        else:
+            self.mumble_client.relay(target, message)
+
+    def on_topic_change(self, channel, message, by):
+        self.mumble_client.irc_topic(channel, message, by)
+
+    def on_ctcp_action(self, by, target, contents):
+        self.mumble_client.irc_action(by, contents)
 
     def on_join(self, channel, user):
         if user != self.nickname:
@@ -62,15 +124,19 @@ class IRCClient(pydle.Client):
         if user != self.nickname:
             self.mumble_client.userpart(user, channel, reason)
 
+    def on_quit(self, user, reason):
+        if user != self.nickname:
+            self.mumble_client.userpart(user, IRC_CHANNEL_NAME, reason)
+
     def userpart(self, joiner, channel):
-        self.message(IRC_CHANNEL_NAME, '<<< \x02{}\x02 has left {}'.format(joiner.replace("", '\u200b'), channel))
+        self.message(IRC_CHANNEL_NAME, '<<< \x02{}\x02 has left {}'.format(joiner.replace("", '\u00AD'), channel))
 
     def userjoin(self, joiner, channel):
-        joiner = joiner[0] + '\u200b' + joiner[1:]
+        joiner = joiner[0] + '\u00AD' + joiner[1:]
         self.message(IRC_CHANNEL_NAME, '>>> \x02{}\x02 has joined {}'.format(joiner, channel))
 
     def relay(self, origin, message):
-        origin = origin[0] + '\u200b' + origin[1:]
+        origin = origin[0] + '\u00AD' + origin[1:]
         self.message(IRC_CHANNEL_NAME, '\x02{}:\x02 {}'.format(extract_text_from_html(origin), extract_text_from_html(message)))
 
 
